@@ -2,8 +2,10 @@ const { admin, db } = require('../util/admin');
 const config = require('../util/config');
 const firebase = require('firebase');
 firebase.initializeApp(config)
-const{ validateSignupData, validateLoginData } = require('../util/validators');
+const{ validateSignupData, validateLoginData, reduceUserDetails } = require('../util/validators');
 
+
+// sign user up
 exports.signup = (req,res) => {
     const newUser = {
         email: req.body.email,
@@ -58,6 +60,7 @@ exports.signup = (req,res) => {
         });
 }
 
+//Log user in.
 exports.login = (req,res) => {
     const user = {
         email: req.body.email,
@@ -85,8 +88,46 @@ exports.login = (req,res) => {
                 return res.status(403).json({general: 'Incorrect login info, please try again.'})
             } else return res.status(500).json({ error: err.code});
         });
+};
+
+// Add user details
+exports.addUserDetails = (req, res) => {
+    let userDetails = reduceUserDetails(req.body);
+
+    db.doc(`/users/${req.user.handle}`).update(userDetails)
+        .then(() => {
+            return res.json({message: ' Details added successfully'});
+        })
+        .catch(err => {
+            console.error(err);
+            return res.status(500).json({error: err.code});
+        });
+};
+
+//Get own user details.
+exports.getAuthenticatedUser = (req,res) => {
+    let userData = {};
+    db.doc(`/users/${req.user.handle}`).get()
+        .then(doc => {
+            if(doc.exists){
+                userData.credentials = doc.data();
+                return db.collection('likes').where('userHandle', '==', req.user.handle).get()
+            }
+        })
+        .then(data => {
+            userData.likes = [];
+            data.forEach(doc => {
+                userData.likes.push(doc.data());
+            });
+            return res.json(userData);
+        })
+        .catch(err => {
+            console.error(err);
+            return res.status(500).json({ error: err.code});
+        })
 }
 
+// Upload a profile photo.
 exports.uploadImage = (req, res) => {
     const BuyBoy = require('busboy');
     const path = require('path');
